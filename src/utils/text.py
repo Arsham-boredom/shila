@@ -1,7 +1,10 @@
-from typing import Dict, Text
+from typing import Dict, List, Text
 from omegaconf import OmegaConf
 import os
 import csv
+from pytorch_lightning.core.step_result import Result
+
+import torch
 
 class TableGenerator:
     """Generate Lookup-table
@@ -28,11 +31,8 @@ class TableGenerator:
 
         for sequence in self.CHARS:
             for char in sequence.split(" "):
-                index += 1
                 self.table[index] = char
-
-        # add blank character
-        self.table[index+1] = "<blank>"
+                index += 1
 
 class Filter:
     def __init__(self, lookup_table: Dict[int, str], default_replace=" ") -> None:
@@ -57,7 +57,15 @@ class Filter:
     def apply_filters(self, text):
         return self.clear_symbols(text)
 
-class TextUtility(Filter):
+class Decoder:
+    """ CTC output decoder based on Beam and Greedy search.
+    """
+
+    def greedy(self, probs: torch.Tensor) -> List[int]:
+        result = torch.argmax(probs, dim=1)
+        return list(map(int, result))
+
+class TextUtility(Filter, Decoder):
     """Turn raw Text into numberical representation in character-level and vice versa.
     """
     _lookup_table = {}
@@ -95,16 +103,23 @@ class TextUtility(Filter):
 
     @property
     def reversed_lookup_table(self):
-        """reverse index->char to char->index.
+        """reverse char->index to index->char.
         """
-        return {value:key for key, value in self._lookup_table.items()}
+        return {int(value):key for key, value in self._lookup_table.items()}
+
+    @property
+    def table_length(self):
+        return len(self._lookup_table)
 
     @property
     def blank_id(self):
         # if table length is 27, 
         # blank_id would be 28 for CTC model
-        return len(self._lookup_table) + 1
+        return self.table_length + 1
 
     def convert_to_integer(self, text):
         text = self.apply_filters(text)
-        return [self.reversed_lookup_table[char] for char in text]
+        return [int(self._lookup_table[char]) for char in text]
+
+    def convert_to_text(self, arr: List[int]) -> Text:
+        return "".join(self.reversed_lookup_table[index] for index in arr)
