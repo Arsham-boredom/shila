@@ -59,3 +59,4 @@ class DepthwiseSeperableConv1D(DynamicDepthwiseSeperableConv):
 
     def __init__(self, input_channels, output_channels, kernel_size=1, stride=1, dropout=None):
         super().__init__('1d', input_channels, output_channels, kernel_size=kernel_size, stride=stride, dropout=dropout)
+
