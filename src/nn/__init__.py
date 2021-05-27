@@ -3,3 +3,5 @@ from src.nn.conv import (
     DepthwiseSeperableConv1D,
     DepthwiseSeperableConv2d
 )
+
+from src.nn.ctc import CTC_Model

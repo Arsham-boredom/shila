@@ -3,7 +3,7 @@ import librosa
 import torch
 from torch import Tensor, nn
 from pandas import DataFrame
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from src.utils.text import TextUtility
 from src.utils.audio import AudioUtility
 

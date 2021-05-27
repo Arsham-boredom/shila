@@ -1,5 +1,4 @@
 from typing import Dict, List, Text
-from functools import reduce
 from omegaconf import OmegaConf
 import os
 import csv
@@ -60,11 +59,7 @@ class Filter:
         return "".join(list(text_as_list))
 
     def clear_space_duplication(self, text):
-        SPACE = " "
-        prev = lambda arr: "" if len(arr) < 1 and (not arr[0] is SPACE) else arr[-1]
-        filter = lambda ctx, acc: ctx if acc is SPACE and prev(ctx) is SPACE else ctx+acc
-        clear_last_space = lambda text: text if not text[-1] is SPACE else text[:-1]
-        return clear_last_space(reduce(filter, text))
+        return " ".join(text.split())
 
     def apply_filters(self, text):
         text = self.clear_symbols(text)
