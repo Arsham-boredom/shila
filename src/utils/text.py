@@ -140,3 +140,4 @@ class TextUtility(Filter, Decoder):
     def convert_to_text(self, arr: List[int]) -> Text:
         print(self._lookup_table)
         return "".join(self._lookup_table[index] for index in arr)
+
