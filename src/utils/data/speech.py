@@ -6,6 +6,11 @@ from torch.utils.data import Dataset
 from src.utils.text import TextUtility
 from src.utils.audio import AudioUtility
 
+DIRECORY_NAME = "cv-corpus-6.1-2020-12-11"
+
+def get_complete_path(filename):
+  return "{}/fa/clips/{}".format(DIRECORY_NAME, filename)
+
 class CommonVoice(Dataset, TextUtility, AudioUtility):
 
     def __init__(self, df, config) -> None:
@@ -20,7 +25,7 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
     def __getitem__(self, index) -> Tuple[Tensor, Tensor, int, int]:
         item = self.df.iloc[index]
         text = self.convert_to_integer(item.sentence)
-        audio = self.read(item.path)
+        audio = self.read(get_complete_path(item.path))
 
         return torch.tensor(audio), torch.tensor(text), len(audio), len(text)
 
