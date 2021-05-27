@@ -14,8 +14,7 @@ def get_complete_path(filename):
 class CommonVoice(Dataset, TextUtility, AudioUtility):
 
     def __init__(self, df, config) -> None:
-        super().__init__()
-        super(TextUtility, self).__init__(config=config)
+        super().__init__(config=config)
         # common voice .csv file
         self.df: DataFrame = df
 
