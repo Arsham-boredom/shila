@@ -1,8 +1,8 @@
 from typing import Dict, List, Text
+from functools import reduce
 from omegaconf import OmegaConf
 import os
 import csv
-from pytorch_lightning.core.step_result import Result
 
 import torch
 
@@ -21,6 +21,7 @@ class TableGenerator:
     def __init__(self) -> None:
         self.table = {}
         self.add_characters()
+        self.add_symbols()
 
     @property
     def last_index(self):
@@ -34,6 +35,10 @@ class TableGenerator:
                 self.table[index] = char
                 index += 1
 
+    def add_symbols(self):
+        # right now only <space> symbol will be here
+        self.table[self.last_index] = " "
+
 class Filter:
     def __init__(self, lookup_table: Dict[int, str], default_replace=" ") -> None:
         self._lookup_table = lookup_table
@@ -43,7 +48,7 @@ class Filter:
     def chars(self):
         """return list of all characters mapped in lookup-table
         """
-        return [value for key, value in self._lookup_table]
+        return self._lookup_table.values()
 
     def clear_symbols(self, text):
         """
@@ -52,10 +57,19 @@ class Filter:
 
         text_as_list = list(text)
         text_as_list =  map(filter, text_as_list)
-        return list(text_as_list)
+        return "".join(list(text_as_list))
+
+    def clear_space_duplication(self, text):
+        SPACE = " "
+        prev = lambda arr: "" if len(arr) < 1 and (not arr[0] is SPACE) else arr[-1]
+        filter = lambda ctx, acc: ctx if acc is SPACE and prev(ctx) is SPACE else ctx+acc
+        clear_last_space = lambda text: text if not text[-1] is SPACE else text[:-1]
+        return clear_last_space(reduce(filter, text))
 
     def apply_filters(self, text):
-        return self.clear_symbols(text)
+        text = self.clear_symbols(text)
+        text = self.clear_space_duplication(text)
+        return text
 
 class Decoder:
     """ CTC output decoder based on Beam and Greedy search.
@@ -89,7 +103,7 @@ class TextUtility(Filter, Decoder):
             for row in csv_table:
                 index = row[0]
                 char = row[1]
-                self._lookup_table[char] = index
+                self._lookup_table[int(index)] = char
 
     def export_table(self, destination: str):
         """export look-up table into .csv file
@@ -99,13 +113,13 @@ class TextUtility(Filter, Decoder):
 
             for key in self._lookup_table:
                 value = self._lookup_table[key]
-                writer.writerow((key, value))
+                writer.writerow((int(key), value))
 
     @property
     def reversed_lookup_table(self):
-        """reverse char->index to index->char.
+        """reverse index->char to char->index.
         """
-        return {int(value):key for key, value in self._lookup_table.items()}
+        return {value:key for key, value in self._lookup_table.items()}
 
     @property
     def table_length(self):
@@ -118,8 +132,11 @@ class TextUtility(Filter, Decoder):
         return self.table_length + 1
 
     def convert_to_integer(self, text):
+        print("start")
         text = self.apply_filters(text)
-        return [int(self._lookup_table[char]) for char in text]
+        print("after filter: ", text)
+        return [int(self.reversed_lookup_table[char]) for char in text]
 
     def convert_to_text(self, arr: List[int]) -> Text:
-        return "".join(self.reversed_lookup_table[index] for index in arr)
+        print(self._lookup_table)
+        return "".join(self._lookup_table[index] for index in arr)
