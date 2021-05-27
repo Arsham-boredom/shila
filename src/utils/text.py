@@ -1,9 +1,8 @@
 from typing import Dict, List, Text
-from omegaconf import OmegaConf
 import os
 import csv
-
 import torch
+from persian import persian
 
 class TableGenerator:
     """Generate Lookup-table
@@ -61,9 +60,15 @@ class Filter:
     def clear_space_duplication(self, text):
         return " ".join(text.split())
 
+    def replace_numbers(self, text):
+        """replace arabic and persian numebrs with english ones.
+        """
+        return persian.convert_fa_numbers(text)
+
     def apply_filters(self, text):
         text = self.clear_symbols(text)
         text = self.clear_space_duplication(text)
+        text = self.replace_numbers(text)
         return text
 
 class Decoder:

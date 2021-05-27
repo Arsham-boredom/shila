@@ -1,5 +1,4 @@
 from typing import Tuple
-import librosa
 import torch
 from torch import Tensor, nn
 from pandas import DataFrame
