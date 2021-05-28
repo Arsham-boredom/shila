@@ -132,9 +132,7 @@ class TextUtility(Filter, Decoder):
         return self.table_length + 1
 
     def convert_to_integer(self, text):
-        print("start")
         text = self.apply_filters(text)
-        print("after filter: ", text)
         return [int(self.reversed_lookup_table[char]) for char in text]
 
     def convert_to_text(self, arr: List[int]) -> Text:
