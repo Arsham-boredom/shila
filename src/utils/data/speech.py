@@ -32,6 +32,7 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
 def collate_function(batch_chunk):
 
     x_batch, y_batch = list(), list()
+    x_lengths, y_lengths = list(), list()
 
     for (x, y) in batch_chunk:
         #TODO add torchaudio.transform for some regulation
@@ -40,9 +41,12 @@ def collate_function(batch_chunk):
         x_batch.append(x)
         y_batch.append(y)
 
+        x_lengths.append(len(x))
+        y_lengths.append(len(y))
+
     # pad wav arrays with 0, silence
     x_batch = nn.utils.rnn.pad_sequence(x_batch, batch_first=True)
     # pad text with SPACE, with index of 43, check table.csv and put it manually
     y_batch = nn.utils.rnn.pad_sequence(y_batch, batch_first=True, padding_value=43)
 
-    return torch.tensor(x_batch), torch.tensor(y_batch), x_batch.size(1), y_batch.size(1)
+    return torch.tensor(x_batch), torch.tensor(y_batch), x_lengths, y_lengths
