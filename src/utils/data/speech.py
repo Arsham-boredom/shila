@@ -1,4 +1,5 @@
 from typing import Tuple
+from numpy import pad
 import torch
 from torch import Tensor, nn
 from pandas import DataFrame
@@ -21,20 +22,27 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
     def __len__(self):
         return len(self.df)
 
-    def __getitem__(self, index) -> Tuple[Tensor, Tensor, int, int]:
+    def __getitem__(self, index) -> Tuple[Tensor, Tensor]:
         item = self.df.iloc[index]
         text = self.convert_to_integer(item.sentence)
         audio, _ = self.read(get_complete_path(item.path))
 
-        return torch.tensor(audio), torch.tensor(text), len(audio), len(text)
+        return torch.tensor(audio), torch.tensor(text)
 
-def collate_function(batch):
-    #TODO add torchaudio.transform for some regulation
-    x_batch, y_batch , x_len, y_len = batch
+def collate_function(batch_chunk):
+
+    x_batch, y_batch = list(), list()
+
+    for (x, y) in batch_chunk:
+        #TODO add torchaudio.transform for some regulation
+        #TODO optimize this loop. too slow
+
+        x_batch.append(x)
+        y_batch.append(y)
+
+    # pad wav arrays with 0, silence
     x_batch = nn.utils.rnn.pad_sequence(x_batch, batch_first=True)
+    # pad text with SPACE, with index of 43, check table.csv and put it manually
+    y_batch = nn.utils.rnn.pad_sequence(y_batch, batch_first=True, padding_value=43)
 
-    # 43 is the index of SPACE in char table, look at table.csv I put it here manually
-    # this will pad text labels with SPACE
-    y_batch = nn.utils.rnn.pad_sequence(y_batch, batch_first=True, padding_value=43) 
-
-    return x_batch, y_batch, x_len, y_len
+    return torch.tensor(x_batch), torch.tensor(y_batch), x_batch.size(1), y_batch.size(1)
