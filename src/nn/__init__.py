@@ -4,4 +4,4 @@ from src.nn.conv import (
     DepthwiseSeperableConv2d
 )
 
-from src.nn.ctc import CTC_Model
+from src.nn.ctc import EncDecCTCModel

@@ -84,19 +84,27 @@ class TextUtility(Filter, Decoder):
     """
     _lookup_table = {}
 
-    def __init__(self, config) -> None:
+    def __init__(self, config, auto_generate=False) -> None:
         if "table_path" in config.text_utility:
-            self.load_table(config.text_utility.table_path)
+            self.load_table(config.text_utility.table_path, auto_generate=auto_generate)
         else:
             gen = TableGenerator()
             self._lookup_table = gen.table
 
         super().__init__(self._lookup_table, default_replace=config.text_utility.replacer)
 
-    def load_table(self, table_path):
+    def load_table(self, table_path, auto_generate=False):
         # load character-level lookup table 
         # from .csv file
-        assert os.path.isfile(table_path), ".csv file for lookup-tabe does not exitst, (text_utility/table_path)"
+
+        if auto_generate:
+            if not os.path.isfile(table_path):
+                # if file does not exists, make that file and store new generated table.
+                gen = TableGenerator()
+                self._lookup_table = gen.table
+                self.export_table(table_path)
+                return
+
         with open(table_path, encoding='utf-8', newline="") as file:
             csv_table = csv.reader(file, delimiter=",")
 
