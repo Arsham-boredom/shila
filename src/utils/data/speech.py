@@ -29,7 +29,7 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
 
         return torch.tensor(audio), torch.tensor(text)
 
-def collate_function(batch_chunk):
+def ctc_collate_function(batch_chunk):
 
     x_batch, y_batch = list(), list()
     x_lengths, y_lengths = list(), list()
@@ -50,3 +50,12 @@ def collate_function(batch_chunk):
     y_batch = nn.utils.rnn.pad_sequence(y_batch, batch_first=True, padding_value=43)
 
     return torch.tensor(x_batch), torch.tensor(y_batch), x_lengths, y_lengths
+
+class SpeechCommand(Dataset, AudioUtility):
+    #TODO
+    def __init__(self) -> None:
+        super().__init__()
+        pass
+
+    def __getitem__(self, index):
+        return super().__getitem__(index)

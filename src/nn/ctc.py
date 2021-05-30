@@ -3,7 +3,7 @@ from torch.nn.modules import loss
 from src.nn import TorchModule
 
 
-class CTC_Model(TorchModule):
+class EncDecCTCModel(TorchModule):
     """CTC Encoder Decoder model
     """
 
