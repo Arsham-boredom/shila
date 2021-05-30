@@ -29,7 +29,7 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
 
         return torch.tensor(audio), torch.tensor(text)
 
-T = lambda t: t.view((t.size(0), 1, t.size()[1:]))
+T = lambda t: t.view((t.size(0), 1, *t.size()[1:]))
 
 def ctc_collate_function(batch_chunk):
 
