@@ -29,6 +29,8 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
 
         return torch.tensor(audio), torch.tensor(text)
 
+T = lambda t: t.view((t.size(0), 1, t.size()[1:]))
+
 def ctc_collate_function(batch_chunk):
 
     x_batch, y_batch = list(), list()
@@ -46,10 +48,11 @@ def ctc_collate_function(batch_chunk):
 
     # pad wav arrays with 0, silence
     x_batch = nn.utils.rnn.pad_sequence(x_batch, batch_first=True)
+    x_batch = T(x_batch)
     # pad text with SPACE, with index of 43, check table.csv and put it manually
     y_batch = nn.utils.rnn.pad_sequence(y_batch, batch_first=True, padding_value=43)
 
-    return torch.tensor(x_batch), torch.tensor(y_batch), x_lengths, y_lengths
+    return x_batch, y_batch, x_lengths, y_lengths
 
 class SpeechCommand(Dataset, AudioUtility):
     #TODO
