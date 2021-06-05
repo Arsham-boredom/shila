@@ -14,4 +14,4 @@ class AudioUtility(Record):
         return librosa.load(file_path, sr=self.__sound_rate__)
 
     def mfcc(self, wav: np.array) -> Tuple[np.array, int]:
-        return librosa.feature.mfcc(wav, sr=self.__sound_rate__)
+        return librosa.feature.mfcc(wav, sr=self.__sound_rate__) 
