@@ -3,13 +3,12 @@ from pytorch_lightning import LightningModule
 
 class TorchModule(LightningModule):
 
-    def export_onnx(self, output_destination, input_shape):
-        # export model in ONNX format
-        torch.onnx.export(
-            self, 
-            torch.zeros(input_shape),
-            output_destination
-        )
+    def save(self, path):
+        torch.save(self.state_dict, path)
+
+    def inference(self, path):
+        self.load_state_dict(torch.load(path))
+        self.eval()
 
     #TODO
     def download_model(self):
