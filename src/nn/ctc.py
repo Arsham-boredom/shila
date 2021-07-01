@@ -31,7 +31,7 @@ class EncDecCTCModel(TorchModule):
         x, y, x_length, y_length = train_batch
 
         # why ?
-        new_x_lengths = [i//2 for i in x_length]
+        # new_x_lengths = [i//2 for i in x_length]
 
         encoder_output = self.encoder(x)\
             .transpose(2, 1) #(batch, sequence, features)
@@ -41,7 +41,7 @@ class EncDecCTCModel(TorchModule):
 
         probs = nn.functional.log_softmax(probs, dim=-1)
 
-        loss = self.loss(probs, y, new_x_lengths, y_length)
+        loss = self.loss(probs, y, x_length, y_length)
         self.log("loss", loss)
 
         return loss
