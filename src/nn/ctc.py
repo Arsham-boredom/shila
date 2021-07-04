@@ -1,5 +1,6 @@
 from torch import nn
 from torch.nn.modules import loss
+from src.utils.metrice import WER, CER
 from src.nn import TorchModule
 
 
@@ -14,6 +15,9 @@ class EncDecCTCModel(TorchModule):
         self.decoder = decoder
         self.loss = nn.CTCLoss(blank=blank_id)
         self.optimizer = optimizer
+
+        self.wer = WER()
+        self.cer = CER()
 
     def forward(self, x):
         encoder_output = self.encoder(x)\
@@ -50,6 +54,10 @@ class EncDecCTCModel(TorchModule):
         x, y, x_length, y_length = validation_batch
         y_pred = self.model(x)
         loss = self.loss(x, y_pred, x_length, y_length)
-        self.log(loss)
+        self.cer(y, y_pred)
+        self.wer(y, y_pred)
 
+        self.log("loss", loss)
+        self.log("CER", self.cer.average_errors)
+        self.log("WER", self.wer.average_errors)
         
