@@ -1,4 +1,5 @@
 from typing import Tuple
+from pathlib import Path
 from numpy import pad
 import torch
 from torch import Tensor, nn
@@ -8,19 +9,14 @@ from torch.utils.data import Dataset
 from src.utils.text import TextUtility
 from src.utils.audio import AudioUtility
 
-DIRECORY_NAME = "cv-corpus-6.1-2020-12-11"
-
-
-def get_complete_path(filename):
-    return "{}/fa/clips/{}".format(DIRECORY_NAME, filename)
-
 
 class CommonVoice(Dataset, TextUtility, AudioUtility):
 
-    def __init__(self, df, config) -> None:
+    def __init__(self, path: Path, df: DataFrame, config) -> None:
         super().__init__(config=config)
         # common voice .csv file
         self.df: DataFrame = df
+        self.path = path / 'clips/'
 
     def __len__(self):
         return len(self.df)
@@ -28,12 +24,9 @@ class CommonVoice(Dataset, TextUtility, AudioUtility):
     def __getitem__(self, index) -> Tuple[Tensor, Tensor]:
         item = self.df.iloc[index]
         text = self.convert_to_integer(item.sentence)
-        audio, _ = self.read(get_complete_path(item.path))
+        audio, _ = self.read(self.path / item.path)
 
         return torch.tensor(audio), torch.tensor(text)
-
-
-def T(t): return t.view((t.size(0), 1, *t.size()[1:]))
 
 
 mfcc = MFCC()
@@ -49,17 +42,18 @@ def ctc_collate_function(batch_chunk):
         # TODO optimize this loop. too slow
 
         x = mfcc(x)
+        x = x.transpose(0, 1)
 
         x_batch.append(x)
         y_batch.append(y)
 
-        x_lengths.append(len(x))
+        x_lengths.append(x.shape[0] // 2)
         y_lengths.append(len(y))
 
-    # pad wav arrays with 0, silence
-    x_batch = nn.utils.rnn.pad_sequence(x_batch, batch_first=True)
-    #x_batch = T(x_batch)
-    # pad text with SPACE, with index of 43, check table.csv and put it manually
+    x_batch = nn.utils.rnn.pad_sequence(x_batch, batch_first=True) \
+        .transpose(1, 2)
+    # pad text with SPACE, with index of 43,
+    # check table.csv and put it manually
     y_batch = nn.utils.rnn.pad_sequence(
         y_batch, batch_first=True, padding_value=43)
 

@@ -6,7 +6,8 @@ from typing import List, Union
 from dataclasses import dataclass
 
 import torch
-from torch.nn.modules import dropout
+from torch.nn.modules import dropout, padding
+from torch.utils import data
 
 from src.nn import (
     TorchModule,
@@ -19,7 +20,7 @@ class PreConfig:
     input_channels: int
     kernel_size: int
     filter_size: int
-    drouput: float
+    dropout: float
 
 
 @dataclass
@@ -28,10 +29,18 @@ class BlockConfig:
     filters: List[int]
     kernels: List[int]
     drop_rates: List[int]
+    repeat: List[int] = 0
+
+    def __str__(self) -> str:
+        return f"neural config with {len(self.input_channels)} stack of convolution"
 
 
-class PostConfig(BlockConfig):
-    dilation_rates: List[int]
+@dataclass
+class PostConfig:
+    input_channels: List[int]
+    filters: List[int]
+    kernels: List[int]
+    drop_rates: List[int]
 
 
 class PreBlock(TorchModule):
@@ -44,8 +53,8 @@ class PreBlock(TorchModule):
             kernel_size=config.kernel_size,
         )
 
-        self.drop = torch.nn.Dropout()
-        self.norm = torch.nn.BatchNorm1d()
+        self.drop = torch.nn.Dropout(config.dropout)
+        self.norm = torch.nn.BatchNorm1d(config.filter_size)
         self.relu = torch.nn.ReLU()
 
     def forward(self, x):
@@ -53,12 +62,21 @@ class PreBlock(TorchModule):
 
 
 def factory_gen(config: Union[BlockConfig, PostConfig]):
+
+    if isinstance(config, PostConfig):
+        return zip(
+            config.input_channels,
+            config.filters,
+            config.kernels,
+            config.drop_rates,
+        )
+
     return zip(
         config.input_channels,
         config.filters,
         config.kernels,
         config.drop_rates,
-        None if isinstance(config, BlockConfig) else config.dilation_rates
+        config.repeat
     )
 
 
@@ -68,11 +86,12 @@ class PostBlock(TorchModule):
 
         self.model = torch.nn.Sequential()
 
-        for cell_config in factory_gen(config):
+        for idx, cell_config in enumerate(factory_gen(config), start=1):
             # extract parameters for each single cell
-            in_channels, out_channels, kernel, drop, _ = cell_config
+            in_channels, out_channels, kernel, drop = cell_config
 
             self.model.add_module(
+                f"Conv1d::{idx}",
                 torch.nn.Conv1d(
                     in_channels=in_channels,
                     out_channels=out_channels,
@@ -80,9 +99,15 @@ class PostBlock(TorchModule):
                 )
             )
 
-            self.model.add_module(torch.nn.BatchNorm1d())
-            self.model.add_module(torch.nn.ReLU())
-            self.model.add_module(torch.nn.Dropout())
+            self.model.add_module(f"Drop::{idx}", torch.nn.Dropout(drop))
+            self.model.add_module(
+                f"BatchNorm::{idx}",
+                torch.nn.BatchNorm1d(out_channels)
+            )
+            self.model.add_module(
+                f"RELU::{idx}",
+                torch.nn.ReLU()
+            )
 
         self.pointwise = torch.nn.Conv1d(
             in_channels=config.filters[-1],
@@ -92,6 +117,7 @@ class PostBlock(TorchModule):
 
     def forward(self, x):
         return self.pointwise(self.model(x))
+
 
 class QuartzSubBlock(TorchModule):
     def __init__(self, in_channels, out_channels, kernel_size, drop) -> None:
@@ -104,68 +130,113 @@ class QuartzSubBlock(TorchModule):
             dropout=drop
         )
 
-        self.norm = torch.nn.BatchNorm1d()
+        self.norm = torch.nn.BatchNorm1d(out_channels)
         self.relu = torch.nn.ReLU()
 
     def forward(self, x):
         return self.relu(self.norm(self.conv(x)))
 
 
+class TimeChannel(TorchModule):
+    def __init__(self, in_channels, out_channels, kernel_size, drop) -> None:
+        super().__init__()
+
+        self.conv = DepthwiseSeperableConv1D(
+            input_channels=in_channels,
+            output_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=kernel_size//2,
+            dropout=drop
+        )
+
+        self.point_wise = torch.nn.Conv1d(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=1
+        )
+
+        self.norm = torch.nn.BatchNorm1d(out_channels)
+        self.relu = torch.nn.ReLU()
+
+    def forward(self, x):
+        x = self.point_wise(self.conv(x))
+        return self.relu(self.norm(x))
+
+
+class QuartzSubBlock(TorchModule):
+    def __init__(self, in_channels, out_channels, kernel_size, drop, repeat) -> None:
+        super().__init__()
+
+        self.pipe = torch.nn.Sequential()
+
+        self.pipe.add_module(
+            "TimeChannel::first",
+            TimeChannel(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                drop=drop
+            )
+        )
+
+        for idx in range(repeat - 1):
+            self.pipe.add_module(
+                "TimeChannel::{}".format(idx),
+                TimeChannel(
+                    in_channels=out_channels,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    drop=drop
+                )
+            )
+
+        self.last_sub_block = torch.nn.Sequential(
+            DepthwiseSeperableConv1D(
+                input_channels=out_channels,
+                output_channels=out_channels,
+                kernel_size=kernel_size,
+                padding=kernel_size//2
+            ),
+            torch.nn.Conv1d(out_channels, out_channels, kernel_size=1),
+            torch.nn.BatchNorm1d(out_channels)
+        )
+
+        self.residual = torch.nn.Sequential(
+            torch.nn.Conv1d(in_channels, out_channels, kernel_size=1),
+            torch.nn.BatchNorm1d(out_channels)
+        )
+        self.relu = torch.nn.ReLU()
+
+    def forward(self, x):
+        output = self.pipe(x)
+        residual = self.residual(x)
+        output = self.last_sub_block(output) + residual
+        return self.relu(output)
+
 
 class QuartzBlock(TorchModule):
     def __init__(self, config: BlockConfig) -> None:
         super().__init__()
 
-        self.pipe = torch.nn.Sequential()
-
-        block_length = len(config.input_channels)
+        self.model = torch.nn.Sequential()
 
         for idx, cell_config in enumerate(factory_gen(config), start=1):
-            in_channels, out_channels, kernel, drop, _ = cell_config
+            in_channels, out_channels, kernel, drop, repeat = cell_config
 
-            self.pipe.add_module(
-                DepthwiseSeperableConv1D(
-                    input_channels=in_channels,
-                    output_channels=out_channels,
+            self.model.add_module(
+                "Sub-Block::{}".format(idx),
+                QuartzSubBlock(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
                     kernel_size=kernel,
-                    dropout=drop
+                    drop=drop,
+                    repeat=repeat
                 )
             )
 
-            self.pipe.add_module(torch.nn.BatchNorm1d())
-            self.pipe.add_module(torch.nn.ReLU())
-
-            if idx == (block_length -1):
-                break
-
-        # last last sub-block without relu activation
-        self.pipe.add_module(
-            DepthwiseSeperableConv1D(
-                input_channels=config.input_channels[-1],
-                output_channels=config.filters[-1],
-                kernel_size=config.kernels[-1],
-                dropout=config.drop_rates[-1]
-            )
-        )
-
-        self.pipe.add_module(torch.nn.BatchNorm1d())
-
-        self.residual = torch.nn.Sequential(
-            torch.nn.Conv1d(
-                in_channels=config.input_channels[0],
-                out_channels=config.filters[-1],
-                kernel_size=1
-            ),
-
-            torch.nn.BatchNorm1d()
-        )
-
-        self.relu = torch.nn.ReLU()
-
     def forward(self, x):
-        x = self.pipe(x)
-        residual = self.residual(x)
-        return self.relu(x + residual)
+        return self.model(x)
 
 
 class QuartzNet(TorchModule):
@@ -179,7 +250,7 @@ class QuartzNet(TorchModule):
         super().__init__()
 
         self.pre = PreBlock(pre_config)
-        self.blocks = BlockConfig(block_config)
+        self.blocks = QuartzBlock(block_config)
         self.post = PostBlock(post_config)
 
     def forward(self, x):

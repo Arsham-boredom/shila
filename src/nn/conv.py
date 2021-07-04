@@ -10,7 +10,7 @@ class DynamicDepthwiseSeperableConv(TorchModule):
     __Conv1d__ = '1d'
     __Conv2d__ = '2d'
 
-    def __init__(self, dimention: Text, input_channels, output_channels, kernel_size=1, stride=1, dropout=None):
+    def __init__(self, dimention: Text, input_channels, output_channels, kernel_size=1, stride=1, padding=1, dropout=None):
         super().__init__()
 
         if dimention == self.__Conv1d__:
@@ -22,14 +22,15 @@ class DynamicDepthwiseSeperableConv(TorchModule):
             in_channels=input_channels,
             out_channels=input_channels,
             kernel_size=kernel_size,
-            stride=stride
+            stride=stride,
+            padding=padding
         )
 
         self.pointwise = conv(
             in_channels=input_channels,
             out_channels=output_channels,
             kernel_size=1,
-            stride=stride
+            stride=stride,
         )
 
         self.model = nn.Sequential(
@@ -37,8 +38,8 @@ class DynamicDepthwiseSeperableConv(TorchModule):
             self.pointwise
         )
 
-        self.dropout = nn.Dropout(dropout)
         if dropout is not None:
+            self.dropout = nn.Dropout(dropout)
             self.model.add_module("dropout", self.dropout)
 
     def forward(self, x):
@@ -49,14 +50,14 @@ class DepthwiseSeperableConv2d(DynamicDepthwiseSeperableConv):
     """ 2D depthwise seperable convolution
     """
 
-    def __init__(self, input_channels, output_channels, kernel_size=1, stride=1, dropout=None):
-        super().__init__('2d', input_channels, output_channels, kernel_size=kernel_size, stride=stride, dropout=dropout)
+    def __init__(self, input_channels, output_channels, kernel_size=1, stride=1, padding=0, dropout=None):
+        super().__init__('2d', input_channels, output_channels, kernel_size=kernel_size, stride=stride, padding=padding, dropout=dropout)
 
 
 class DepthwiseSeperableConv1D(DynamicDepthwiseSeperableConv):
     """ 1D depthwise seperable convolution
     """
 
-    def __init__(self, input_channels, output_channels, kernel_size=1, stride=1, dropout=None):
-        super().__init__('1d', input_channels, output_channels, kernel_size=kernel_size, stride=stride, dropout=dropout)
+    def __init__(self, input_channels, output_channels, kernel_size=1, stride=1, padding=0, dropout=None):
+        super().__init__('1d', input_channels, output_channels, kernel_size=kernel_size, stride=stride, padding=padding, dropout=dropout)
 
