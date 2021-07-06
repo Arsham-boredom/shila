@@ -52,7 +52,7 @@ class EncDecCTCModel(TorchModule):
 
     def validation_step(self, validation_batch, batch_idx):
         x, y, x_length, y_length = validation_batch
-        y_pred = self.model(x)
+        y_pred = self.forward(x)
         loss = self.loss(x, y_pred, x_length, y_length)
         self.cer(y, y_pred)
         self.wer(y, y_pred)
