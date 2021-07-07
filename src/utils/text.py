@@ -144,6 +144,5 @@ class TextUtility(Filter, Decoder):
         return [int(self.reversed_lookup_table[char]) for char in text]
 
     def convert_to_text(self, arr: List[int]) -> Text:
-        print(self._lookup_table)
-        return "".join(self._lookup_table[index] for index in arr)
+        return "".join(self._lookup_table[int(index)] for index in arr)
 

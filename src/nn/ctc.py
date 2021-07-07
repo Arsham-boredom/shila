@@ -1,6 +1,7 @@
 from torch import nn
 from torch.nn.modules import loss
 from src.utils.metrice import WER, CER
+from src.utils.text import TextUtility
 from src.nn import TorchModule
 
 
@@ -8,7 +9,7 @@ class EncDecCTCModel(TorchModule):
     """CTC Encoder Decoder model
     """
 
-    def __init__(self, encoder: TorchModule, decoder: TorchModule, blank_id: int, optimizer):
+    def __init__(self, encoder: TorchModule, decoder: TorchModule, blank_id: int, optimizer, utils: TextUtility):
         super().__init__()
 
         self.encoder = encoder
@@ -16,6 +17,7 @@ class EncDecCTCModel(TorchModule):
         self.loss = nn.CTCLoss(blank=blank_id)
         self.optimizer = optimizer
 
+        self.utils = utils
         self.wer = WER()
         self.cer = CER()
 
@@ -52,12 +54,19 @@ class EncDecCTCModel(TorchModule):
 
     def validation_step(self, validation_batch, batch_idx):
         x, y, x_length, y_length = validation_batch
-        y_pred = self.forward(x)
-        loss = self.loss(x, y_pred, x_length, y_length)
-        self.cer(y, y_pred)
-        self.wer(y, y_pred)
+        probs = self.forward(x)
+        probs = nn.functional.log_softmax(probs, dim=-1)
+        loss = self.loss(probs, y, x_length, y_length)
+    
+        for y_probs, predicted_probs in zip(y, probs):
+            y_probs = self.utils.convert_to_text(y_probs)
+            prediction = self.utils.greedy(predicted_probs)
+            prediction = self.utils.convert_to_text(prediction)
 
-        self.log("loss", loss)
+            self.cer(y_probs, prediction)
+            self.wer(y_probs, prediction)
+
         self.log("CER", self.cer.average_errors)
         self.log("WER", self.wer.average_errors)
+        self.log("loss", loss)
         
